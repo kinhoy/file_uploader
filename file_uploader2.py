@@ -11,6 +11,7 @@ import webbrowser
 import time
 import logging
 from datetime import datetime
+import sys
 
 print('''
 //
@@ -32,21 +33,24 @@ print('''
 //         \\  \\ `_.   \\_ __\\ /__ _/   .-` /  /
 //     =====`-.____`.___ \\_____/___.-`___.-'=====
 //                       `=---='
-//
-//
 //     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //
 //               佛祖保佑         永无BUG
 //
 //     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //                使用完毕之后关闭此窗口
+//                       
+//                       v 2.0
+//                       
+//                 by h9h 2024/05/17
+//     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ''')
 
 template = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>同WIFI局域网下上传文件</title>
+    <title>同Wi-Fi局域网文件传输工具</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body {
@@ -54,20 +58,18 @@ template = '''
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            height: 100vh;
             margin: 0;
             background-color: #f0f0f0;
             font-family: Arial, sans-serif;
             padding: 10px;
+            min-height: 100vh;
         }
         h1 {
             color: #333;
             text-align: center;
-            margin-bottom: 10px;
         }
         h2 {
             margin-top: 10px;
-            margin-bottom: 10px; 
         }
         h3 {
             margin-top: 10px; 
@@ -111,6 +113,9 @@ template = '''
             h1 {
                 font-size: 24px;
             }
+            h2 {
+                font-size: 20px;
+            }
             h3 {
                 color: red;
                 font-size: 16px;
@@ -152,45 +157,60 @@ template = '''
         #drop-area {
             border: 2px dashed #008CBA;
             border-radius: 15px;
-            padding: 60px;
+            padding: 30px;
+            margin-top:10px;
             width: 100%;
             max-width: 200px;
             text-align: center;
             color: #333;
         }
+        @media screen and (max-width: 600px) {
+            #links {
+                width: 80vw;
+            }
+        }
+        @media screen and (min-width: 601px) {
+            #links {
+                width: 360px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>同WIFI局域网下上传文件</h1>
+    <h1>同Wi-Fi局域网文件传输工具</h1>
     <h2>手机端扫描二维码访问</h2>
-    <h3>需要关闭防火墙且所有设备在同一网络<br />部分手机只支持单文件上传</h3>
+    <h3>需要关闭防火墙且所有设备在同一网络<br/>部分手机只支持单文件上传</h3>
     {% if is_local %}
     <a href="/open_file_path">打开文件保存处</a>
     {% endif %}
+    
+    {% if download_links %}
     <div id="links">
-        <ul>
+        <ul style="margin-top:10px; padding: 10px; border:1px solid #ccc; font-size: 1rem; list-style-type: none;">
         {% for item in download_links %}
-            <li>
-                <a href="{{ url_for('download_file', item=item) }}">{{ item.caption }}</a> 
-                <a href="{{ url_for('delete_item', item=item.caption) }}">删除</a>
+            <li style="display: flex; justify-content: space-between;">
+                <a style=" text-align: left;" href="{{ url_for('download_file', item=item.caption) }}">下载 {{ shorten(item.caption, 20) }}</a> 
+                {% if is_local %}
+                <a style=" text-align: right;" href="{{ url_for('delete_item', item=item.caption) }}">删除</a>
+                {% endif %}
             </li>
-
         {% endfor %}
         </ul>
     </div>
-    
+    {% endif %}
+
     {% if is_local %}
     <div id="drop-area" class="drop-area">
-        <p>电脑端拖动文件到此处分享</p>
+        <p>拖动文件到此处分享</p>
     </div>
     {% endif %}
 
     <form id="file-form" method="POST" action="" enctype="multipart/form-data">
         {{ img_tag|safe }}
-
         {% if not is_local %}
         <label for="file_select">选择单或多文件</label>
-        <input type="file" hidden="hidden" id="file_select" name="files" multiple>
+        <input type="file" hidden="hidden" id="file_select" name="files" multiple onchange="displayFileNames(this)">
+        <ul id="fileNames" hidden="hidden" style="width: 100%; text-align: left; margin-top:10px; border:1px solid #ccc; padding: 10px; font-size: 1rem; list-style-type: none;"></ul>
         <input type="submit" value="点击上传" onclick="loading();">
         {% endif %}
         <div style="width: 100%; height: 1.5rem; text-align: center;margin-top:10px">by h9h</div>
@@ -199,6 +219,16 @@ template = '''
     <div id="loader" class="loader"></div>
 </body>
 <script type="text/javascript">
+    
+    function displayFileNames(inputElement){
+        var fileNamesList = document.getElementById('fileNames');
+        fileNamesList.style.display = "block";
+        fileNamesList.innerHTML = "";
+        for(var i=0; i<inputElement.files.length; i++){
+            fileNamesList.innerHTML += "<li>" + inputElement.files[i].name + "</li>";
+        }
+    }
+
     function loading() {
         document.getElementById("overlay").style.display = "block";
         document.getElementById("loader").style.display = "block";
@@ -254,6 +284,17 @@ def get_time():
     formatted_now = now.strftime("%Y-%m-%d %H:%M:%S")
     return formatted_now
 
+# 定义 shorten 函数
+def shorten(str, maxLength):
+    if len(str) > maxLength:
+        return str[:int(maxLength/2)] + '...' + str[-int(maxLength/2):]
+    return str
+
+# 使用 context_processor 将函数添加到模板上下文中
+@app.context_processor
+def utility_processor():
+    return {"shorten": shorten}
+
 def is_local_request(request):
     remote_address = request.remote_addr
     local_ip = socket.gethostbyname(socket.gethostname())
@@ -274,7 +315,6 @@ def upload_file_from_pc():
             file.save(os.path.join(UPLOAD_FOLDER, filename))
             download_links = cache.get('download_links') or []
             card_dict = {}
-            card_dict["href"] = '/download/' + filename
             card_dict["caption"] = filename
             download_links.append(card_dict)
             cache.set('download_links', download_links)
@@ -300,17 +340,26 @@ def upload_file_from_mobile():
     download_links = cache.get('download_links') or [] 
     return render_template_string(template, img_tag=img_tag, download_links=download_links, is_local=is_local)
 
+# 运行打包成exe形式的下载
 @app.route('/download/<item>')
 def download_file(item):
-    return send_from_directory(UPLOAD_FOLDER, item)
+    BASE_DIR = os.path.dirname(os.path.realpath(sys.executable))
+    FILE_FOLDER = os.path.join(BASE_DIR, UPLOAD_FOLDER)
+    remote_address = request.remote_addr
+    print(f'{get_time()} 来访主机: {remote_address} 下载文件: {item}')
+    return send_from_directory(FILE_FOLDER, item, as_attachment=True)
+
+# 直接运行py脚本的下载
+# @app.route('/download/<item>')
+# def download_file(item):
+#     return send_from_directory(UPLOAD_FOLDER, item)
 
 @app.route('/delete/<item>')
 def delete_item(item):
-    is_local = is_local_request(request)
     download_links = cache.get('download_links')
     download_links = [d for d in download_links if d.get('caption') != item]
     cache.set('download_links', download_links)
-    return render_template_string(template, img_tag=img_tag, download_links=download_links, is_local=is_local)
+    return '<script>window.location.href="/";</script>'
 
 @app.route('/open_file_path')
 def open_file_path():
@@ -335,7 +384,7 @@ if __name__ == '__main__':
     buffered = BytesIO()
     img.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode()
-    img_tag = f'<img src="data:image/png;base64,{img_str}" alt="qr-code"/>'
+    img_tag = f'<img src="data:image/png;base64,{img_str}" alt="qr-code" style="margin-top: 10px;max-width: 50%;"/>'
     webbrowser.open('http://' + ip_address + ':' + str(ip_port))
     app.run(host='0.0.0.0', port=80)
 
