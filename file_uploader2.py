@@ -40,9 +40,11 @@ print('''
 //     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //                使用完毕之后关闭此窗口
 //                       
-//                       v 2.0
+//                       v 2.1
 //                       
 //                 by h9h 2024/05/17
+//
+//                 update 2025/07/19
 //     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ''')
 
@@ -297,10 +299,9 @@ def utility_processor():
 
 def is_local_request(request):
     remote_address = request.remote_addr
-    local_ip = socket.gethostbyname(socket.gethostname())
-    # print("local: " + local_ip)
+    local_ip_list = socket.gethostbyname_ex(socket.gethostname())[2]
     print(f'{get_time()} 来访主机: {remote_address}')
-    return local_ip == remote_address
+    return remote_address in local_ip_list
 
 @app.route('/pc', methods=['GET', 'POST'])
 def upload_file_from_pc():
